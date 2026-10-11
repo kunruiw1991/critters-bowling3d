@@ -1855,6 +1855,8 @@
         p.shadow.scale.set(1, 1, 1);
       }
     }
+    gameState.aimX = (Math.random() < 0.5 ? -1 : 1) * (0.85 + Math.random() * 0.95);
+    gameState.aimAngle = (Math.random() - 0.5) * 0.05;
     renderMiniPinRack();
   }
 
@@ -2040,8 +2042,8 @@
     gameState.frame = 1;
     gameState.ballInFrame = 1;
     gameState.frameResults = [];
-    gameState.aimX = 0;
-    gameState.aimAngle = 0;
+    gameState.aimX = (Math.random() < 0.5 ? -1 : 1) * (1.25 + Math.random() * 1.15);
+    gameState.aimAngle = (Math.random() - 0.5) * 0.08;
     gameState.spinCurve = 0;
     gameState.activePower = 0;
     gameState.fever = 0;
@@ -2215,18 +2217,18 @@
 
     if (isDirectBallHit && !gameState.firstPinHitThisRoll) {
       gameState.firstPinHitThisRoll = true;
-      gameState.hitStopTimer = 0.05;
+      gameState.hitStopTimer = 0;
       gameState.lastHitStopTriggered = true;
-      addTrauma(0.50);
+      addTrauma(0.14);
     } else {
-      addTrauma(0.25);
+      addTrauma(0.04);
     }
 
     if (!gameState.strikeSlowMoTriggeredThisRoll && countStandingCorePins() === 0) {
       gameState.strikeSlowMoTriggeredThisRoll = true;
-      gameState.slowMoTimer = 0.40;
+      gameState.slowMoTimer = 0.25;
       gameState.lastSlowMoTriggered = true;
-      addTrauma(0.80);
+      addTrauma(0.22);
       spawnFloorShockwaveRing(0, PIN_BASE_Z - 1.8, 4.0, 0x38ef7d, 0.56);
     }
 
@@ -2260,7 +2262,7 @@
     if (obs) {
       obs.lastHit = gameState.simTime;
     }
-    addTrauma(0.28);
+    addTrauma(0.12);
     spawnImpactBurst(b.x - nx * b.radius, 0.5, b.z - nz * b.radius, 4, 1.15, 0xff4b91);
     sfx.playBumperBoing();
     return true;
@@ -2272,32 +2274,23 @@
     }
   }
 
-  // Ball-by-Ball AI Rival Bowling Simulation with Per-Critter Archetypes, 3D Pedestal Celebrations & Stage 1-2 Kid Rubber-Banding
+  // Ball-by-Ball AI Rival Bowling Simulation with Balanced Stage Progression
   function simulateAIRivalsForRoll(isFrameEnd) {
     const stage = STAGES[gameState.stageIndex];
     const baseSkill = stage.aiSkill;
-    const player = gameState.racers[0];
 
     for (let i = 1; i < gameState.racers.length; i++) {
       const rival = gameState.racers[i];
       const c = rival.critter;
       const slot = RIVAL_SLOTS[i - 1];
-      let skill = baseSkill + (2.5 - i) * 0.03 + (c.strikeBoost || 0);
-
-      // Kid-friendly rubber-banding on Stages 1-2 so a kid knocking down 7+ pins per frame reliably wins 3 stars on Stage 1!
-      const isEarlyStage = gameState.stageIndex <= 1;
-      const leadOverPlayer = rival.score - (player ? player.score : 0);
-      if (isEarlyStage && leadOverPlayer > -140) {
-        skill *= 0.58;
-      }
+      let skill = baseSkill + (2.5 - i) * 0.04 + (c.strikeBoost || 0);
 
       // Ball 1 of the frame for this rival
       if (!rival.frameBall || rival.frameBall === 0) {
-        const strikeChance = Math.max(0.03, (skill - 0.14) * 0.42 + (c.strikeBoost || 0));
-        const allowStrike = !(gameState.stageIndex === 0 && leadOverPlayer > -260);
-        if (allowStrike && Math.random() < strikeChance) {
+        const strikeChance = Math.max(0.08, (skill - 0.10) * 0.45 + (c.strikeBoost || 0));
+        if (Math.random() < strikeChance) {
           rival.pinsKnocked += 10;
-          rival.score += 10 * 88 + 210;
+          rival.score += 10 * 92 + 240;
           rival.framePinsDown = 10;
           rival.frameBall = 2;
           rival.lastBadge = '⚡';
@@ -2309,10 +2302,10 @@
             spawnImpactBurst(slot.x, 1.95, slot.z, 5, 0, c.color);
           }
         } else {
-          const variance = (1 - (c.consistency || 0.8)) * 3.2;
-          const b1Pins = Math.max(3, Math.min(8, Math.round(3.8 + skill * 4.2 + (Math.random() - 0.45) * variance)));
+          const variance = (1 - (c.consistency || 0.8)) * 3.0;
+          const b1Pins = Math.max(4, Math.min(9, Math.round(4.6 + skill * 4.2 + (Math.random() - 0.45) * variance)));
           rival.pinsKnocked += b1Pins;
-          rival.score += b1Pins * 84;
+          rival.score += b1Pins * 88;
           rival.framePinsDown = b1Pins;
           rival.frameBall = 1;
           rival.lastBadge = b1Pins >= 7 ? '⭐' : '🎳';
@@ -2325,12 +2318,12 @@
       // Ball 2 (Spare Attempt) if the frame is ending and rival didn't strike on Ball 1
       if (isFrameEnd && rival.frameBall === 1 && rival.framePinsDown < 10) {
         const remaining = 10 - rival.framePinsDown;
-        const spareProb = Math.max(0.06, (c.spareSkill || 0.7) * skill * (isEarlyStage ? 0.45 : 0.82));
+        const spareProb = Math.max(0.18, (c.spareSkill || 0.7) * skill * 0.75);
         let b2Pins = 0;
-        if (Math.random() < spareProb && !(gameState.stageIndex === 0 && leadOverPlayer > -160)) {
+        if (Math.random() < spareProb) {
           b2Pins = remaining;
           rival.lastBadge = '✨';
-          rival.score += b2Pins * 84 + 115;
+          rival.score += b2Pins * 88 + 140;
           if (rivalBillboards[i - 1]) {
             rivalBillboards[i - 1].hopTimer = 0.40;
           }
@@ -2338,8 +2331,8 @@
             spawnFloorShockwaveRing(slot.x, slot.z, 1.45, c.accent || c.color, 0.38);
           }
         } else {
-          b2Pins = Math.max(0, Math.min(remaining - 1, Math.round(remaining * (0.28 + skill * 0.42) * Math.random())));
-          rival.score += b2Pins * 82;
+          b2Pins = Math.max(0, Math.min(remaining - 1, Math.round(remaining * (0.35 + skill * 0.45) * Math.random())));
+          rival.score += b2Pins * 85;
           if (rival.framePinsDown + b2Pins >= 8) {
             rival.lastBadge = '⭐';
           }
@@ -2414,6 +2407,9 @@
     }
     gameState.frame += 1;
     gameState.ballInFrame = 1;
+    gameState.aimX = (Math.random() < 0.5 ? -1 : 1) * (1.25 + Math.random() * 1.15);
+    gameState.aimAngle = (Math.random() - 0.5) * 0.08;
+    gameState.spinCurve = 0;
     rackAllPins();
     resetBallToBowlerLine();
   }
@@ -2747,9 +2743,10 @@
 
       b.vx += b.spin * 4.2 * dt;
 
+      // Only apply pin-homing when Pedal 1 (Curve Spin) or Rainbow Fever is active — normal rolls require real player aiming!
       const targetX = getAverageStandingPinX();
-      const homingStrength = (gameState.activePower === 1 || gameState.feverActive) ? 2.4 : 0.75;
-      if (b.z > PIN_BASE_Z + 1.5) {
+      const homingStrength = (gameState.activePower === 1 || gameState.feverActive) ? 1.85 : 0.0;
+      if (homingStrength > 0 && b.z > PIN_BASE_Z + 1.5) {
         b.vx += (targetX - b.x) * homingStrength * dt;
       }
 
@@ -2819,7 +2816,7 @@
             gameState.racers[0].score += 60;
             spawnFlyingStarCoins(obs.x, 1.0, obs.z, 1);
             spawnImpactBurst(obs.x, 0.8, obs.z, 5, 1.3, 0xffd84d);
-            addTrauma(0.26);
+            addTrauma(0.10);
             sfx.playPinHit(3);
             hudDirty.leaderboard = true;
           }
@@ -2919,8 +2916,8 @@
         }
       }
 
-      // Ball-to-Pin Collisions (with Finite Ball Mass & Deflection)
-      const hitRadius = b.radius + (gameState.activePower === 3 ? 1.45 : (gameState.activePower === 2 ? 0.95 : 0.62));
+      // Realistic Ball-to-Pin Collisions (Tight Contact Radius & Real Ball Deflection on Pin Impact)
+      const hitRadius = b.radius + (gameState.activePower === 3 ? 1.35 : (gameState.activePower === 2 ? 0.82 : 0.28));
       for (let i = 0; i < MAX_PINS; i++) {
         const pin = pinEntities[i];
         if (!pin.active || !pin.standing) continue;
@@ -2932,18 +2929,18 @@
           const nz = dist > 0.01 ? dz / dist : -1.0;
 
           if (gameState.activePower === 3) {
-            triggerBombShockwave(b.x, b.z, 5.2);
+            triggerBombShockwave(b.x, b.z, 5.0);
             b.vz *= 0.985;
           } else {
-            const impulse = 14.5;
-            knockDownPin(pin, nx * impulse + b.vx * 0.45, nz * impulse + b.vz * 0.55, true);
-            // Finite ball mass: heavy pins slow and deflect a normal ball, while Fireball/Fever plow through!
+            const impulse = (gameState.activePower === 2 || gameState.feverActive) ? 13.5 : 8.2;
+            knockDownPin(pin, nx * impulse + b.vx * 0.38, nz * impulse + b.vz * 0.42, true);
+            // Finite ball mass: heavy pins slow and deflect a normal ball, requiring a pocket angle or power pedal for a strike!
             if (gameState.activePower === 2 || gameState.feverActive) {
-              b.vz *= 0.985;
-              b.vx = Math.max(-14, Math.min(14, b.vx - nx * 0.32));
+              b.vz *= 0.98;
+              b.vx = Math.max(-14, Math.min(14, b.vx - nx * 0.40));
             } else {
-              b.vz *= 0.94;
-              b.vx = Math.max(-14, Math.min(14, b.vx - nx * 1.15));
+              b.vz *= 0.85;
+              b.vx = Math.max(-14, Math.min(14, b.vx - nx * 2.15));
             }
           }
         }
@@ -3006,7 +3003,7 @@
         if (pin.vy < 0) pin.vy = 0;
 
         const spd = Math.hypot(pin.vx, pin.vz);
-        const decel = 6.5 * dt;
+        const decel = 10.5 * dt;
         if (spd <= decel) {
           pin.vx = 0;
           pin.vz = 0;
@@ -3046,8 +3043,8 @@
         pin.shadow.scale.set(heightShrink, heightShrink * tiltStretch, 1);
       }
 
-      // Pin-to-Pin Domino Chain Collisions!
-      if (Math.hypot(pin.vx, pin.vz) > 0.35) {
+      // Realistic Pin-to-Pin Domino Chain Collisions (with momentum transfer & velocity damping so 1 clipped pin doesn't explode all 10!)
+      if (Math.hypot(pin.vx, pin.vz) > 1.35) {
         for (let j = 0; j < MAX_PINS; j++) {
           if (i === j) continue;
           const other = pinEntities[j];
@@ -3055,10 +3052,12 @@
           const dx = other.x - pin.x;
           const dz = other.z - pin.z;
           const dist = Math.hypot(dx, dz);
-          if (dist < 1.18) {
+          if (dist < 0.76 && (dx * pin.vx + dz * pin.vz) > 0) {
             const nx = dist > 0.01 ? dx / dist : (Math.random() - 0.5);
             const nz = dist > 0.01 ? dz / dist : -1.0;
-            knockDownPin(other, nx * 11.5 + pin.vx * 0.5, nz * 12.0 + pin.vz * 0.5, false);
+            knockDownPin(other, nx * 4.8 + pin.vx * 0.42, nz * 5.2 + pin.vz * 0.42, false);
+            pin.vx *= 0.42;
+            pin.vz *= 0.42;
           }
         }
       }
@@ -3106,7 +3105,7 @@
     );
   }
 
-  // Frame-Rate Independent Camera Follow + Separate Trauma^2 Smooth Shake & Roll
+  // Frame-Rate Independent Camera Follow + Gentle Stabilized Trauma
   function updateCamera(dt) {
     let targetZ = 19.2;
     let targetY = 4.2;
@@ -3128,16 +3127,15 @@
     cameraBasePos.z += (targetZ - cameraBasePos.z) * alpha;
     cameraBasePos.lookZ += (lookZ - cameraBasePos.lookZ) * alpha;
 
-    // Decay trauma linearly at 1.6/s and compute shake = trauma^2
+    // Decay trauma linearly at 2.4/s and keep shake subtle with zero camera roll
     if (gameState.trauma > 0) {
-      gameState.trauma = Math.max(0, gameState.trauma - 1.6 * dt);
+      gameState.trauma = Math.max(0, gameState.trauma - 2.4 * dt);
     }
     const shake = gameState.trauma * gameState.trauma;
-    const nt = gameState.simTime * 25.0;
-    const offsetX = 0.55 * shake * smoothNoise1D(nt, 1.1);
-    const offsetY = 0.42 * shake * smoothNoise1D(nt, 3.7);
-    const offsetZ = 0.25 * shake * smoothNoise1D(nt, 6.3);
-    const rollRad = (2.5 * Math.PI / 180) * shake * smoothNoise1D(nt, 8.9);
+    const nt = gameState.simTime * 18.0;
+    const offsetX = 0.12 * shake * smoothNoise1D(nt, 1.1);
+    const offsetY = 0.09 * shake * smoothNoise1D(nt, 3.7);
+    const offsetZ = 0.05 * shake * smoothNoise1D(nt, 6.3);
 
     camera.position.set(
       cameraBasePos.x + offsetX,
@@ -3145,7 +3143,6 @@
       cameraBasePos.z + offsetZ
     );
     camera.lookAt(cameraBasePos.x * 0.35, 0.8, cameraBasePos.lookZ);
-    camera.rotation.z += rollRad;
     camera.updateMatrixWorld();
   }
 
